@@ -269,29 +269,48 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('player_enter_game', ({ gameId }, cb) => {
-    if (socket.role !== 'player') return cb({ success: false });
-    const u = users[socket.username];
-    const g = games[gameId];
-    if (!u || !g) return cb({ success: false });
+ socket.on('player_enter_game', ({ gameId }, cb) => {
+  if (socket.role !== 'player') return cb({ success: false });
+  const u = users[socket.username];
+  const g = games[gameId];
+  if (!u || !g || !g.url) return cb({ success: false, message: 'Game not available' });
 
-    const msg = {
-      id: uuidv4(),
-      type: 'game_enter',
-      text: `Player ${u.username} (Coins: ${u.coins}) entered ${g.name}`,
-      username: u.username,
-      coins: u.coins,
-      game: g.name,
-      time: new Date().toISOString()
-    };
-    notifications.unshift(msg);
-    if (notifications.length > 200) notifications.pop();
-    save(FILES.notifs, notifications);
+  // Temporary token (60 seconds)
+  const token = crypto.randomBytes(16).toString('hex');
+  gameTokens[token] = {
+    username: u.username,
+    coins: u.coins,
+    expires: Date.now() + 60 * 1000
+  };
 
-    io.to('master').emit('notification', msg);
-    (settings.notifyAgents || []).forEach(ag => io.to('agent_' + ag).emit('notification', msg));
-    cb({ success: true, url: g.url });
+  // Clean old tokens
+  Object.keys(gameTokens).forEach(t => {
+    if (gameTokens[t].expires < Date.now()) delete gameTokens[t];
   });
+
+  const msg = {
+    id: uuidv4(),
+    type: 'game_enter',
+    text: `Player ${u.username} (Coins: ${u.coins}) entered ${g.name}`,
+    username: u.username,
+    coins: u.coins,
+    game: g.name,
+    time: new Date().toISOString()
+  };
+  notifications.unshift(msg);
+  if (notifications.length > 200) notifications.pop();
+  save(FILES.notifs, notifications);
+
+  io.to('master').emit('notification', msg);
+  (settings.notifyAgents || []).forEach(ag => {
+    io.to('agent_' + ag).emit('notification', msg);
+  });
+
+  const base = g.url.endsWith('/') ? g.url.slice(0, -1) : g.url;
+  const finalUrl = `${base}/?token=${token}&user=${encodeURIComponent(u.username)}`;
+
+  cb({ success: true, url: finalUrl });
+});
 
   socket.on('live_bet', (data) => {
     io.to('master').emit('live_bet', data);
