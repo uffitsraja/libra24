@@ -1,0 +1,15 @@
+{
+  "name": "libra24",
+  "version": "1.0.0",
+  "description": "Libra 24 - Central Multi-Game Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "uuid": "^9.0.1"
+  }
+}
