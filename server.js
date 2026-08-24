@@ -63,9 +63,11 @@ if (!users['master']) {
 save(FILES.games, games);
 save(FILES.settings, settings);
 
-app.use(cors());
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json({ limit: '5mb' }));
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+});
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
