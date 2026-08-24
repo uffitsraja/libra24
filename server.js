@@ -70,7 +70,24 @@ app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'log
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 app.get('/master', (req, res) => res.sendFile(path.join(__dirname, 'public', 'master.html')));
 app.get('/agent', (req, res) => res.sendFile(path.join(__dirname, 'public', 'agent.html')));
+// Token validate API for games
+app.get('/api/validate-token', (req, res) => {
+  const { token, user } = req.query;
+  if (!token || !user) {
+    return res.json({ success: false, message: 'Missing token' });
+  }
 
+  const data = gameTokens[token];
+  if (!data || data.username !== user || data.expires < Date.now()) {
+    return res.json({ success: false, message: 'Invalid or expired token' });
+  }
+
+  res.json({
+    success: true,
+    username: data.username,
+    coins: data.coins
+  });
+});
 io.on('connection', (socket) => {
   socket.on('login', ({ username, password }, cb) => {
     username = (username || '').trim().toLowerCase();
