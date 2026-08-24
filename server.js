@@ -63,6 +63,7 @@ if (!users['master']) {
 save(FILES.games, games);
 save(FILES.settings, settings);
 
+app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json({ limit: '5mb' }));
 
