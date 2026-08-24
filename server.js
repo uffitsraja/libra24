@@ -43,7 +43,7 @@ let settings = load(FILES.settings, {
   notifyAgents: []
 });
 let notifications = load(FILES.notifs, []);
-
+let gameTokens = {}; // temporary tokens for games
 if (!users['master']) {
   users['master'] = {
     id: uuidv4(),
