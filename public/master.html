@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Libra 24 - Master Panel</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Inter',system-ui,sans-serif;background:#06080a;color:#e0e0e0;min-height:100vh;padding-bottom:40px}
+    .top{background:#0c1210;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e2e28;position:sticky;top:0;z-index:30}
+    .brand{font-family:'Cinzel',serif;font-size:18px;color:#d4af37;letter-spacing:2px}
+    .top-right{display:flex;gap:10px;align-items:center;font-size:13px}
+    .logout{background:#2a1515;color:#f5b7b1;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:12px}
+    .tabs{display:flex;gap:4px;padding:12px 14px;background:#0a100c;border-bottom:1px solid #1a2a22;overflow-x:auto;position:sticky;top:52px;z-index:20}
+    .tab{padding:9px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;color:#7a8a82;border:1px solid transparent}
+    .tab.active{background:#12201a;color:#d4af37;border-color:#2a3e34}
+    .panel{display:none;padding:16px}
+    .panel.active{display:block}
+    .card{background:#0c1210;border:1px solid #1e2e28;border-radius:12px;padding:16px;margin-bottom:14px}
+    .card h3{color:#d4af37;font-size:13px;letter-spacing:1px;margin-bottom:14px;font-weight:700}
+    input,select{padding:10px 12px;background:#080c0a;border:1px solid #1e2e28;border-radius:8px;color:#fff;font-size:13px;margin:4px 0;width:100%;max-width:220px}
+    button{padding:10px 16px;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;margin:4px 4px 4px 0}
+    .btn-gold{background:linear-gradient(180deg,#d4af37,#b8962e);color:#111}
+    .btn-green{background:#1a6b45;color:#fff}
+    .btn-red{background:#8b1a1a;color:#fff}
+    .btn-blue{background:#1a4a7a;color:#fff}
+    .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+    table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+    th,td{padding:9px 8px;text-align:left;border-bottom:1px solid #1a2a22}
+    th{color:#d4af37;font-weight:600}
+    .notif-item{background:#0a100c;border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12px;border-left:3px solid #d4af37}
+    .notif-item .time{color:#5a6a62;font-size:11px;margin-top:4px}
+    .live-bet{background:#0a100c;border-radius:8px;padding:10px;margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between}
+    .badge{display:inline-block;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700}
+    .badge-agent{background:#1a3a5c;color:#85c1e9}
+    .badge-player{background:#1a4a30;color:#7dcea0}
+    .badge-off{background:#3a1a1a;color:#f5b7b1}
+    .game-edit{background:#0a100c;border-radius:8px;padding:12px;margin-bottom:10px}
+    .game-edit input{max-width:100%;margin-bottom:6px}
+    .toast{position:fixed;bottom:20px;right:20px;background:#12201a;border:1px solid #d4af37;color:#d4af37;padding:12px 18px;border-radius:8px;font-size:13px;display:none;z-index:50}
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div class="brand">LIBRA 24</div>
+    <div class="top-right">
+      <span id="who">Master</span>
+      <button class="logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="notifs" onclick="tab(this)">Notifications</div>
+    <div class="tab" data-tab="agents" onclick="tab(this)">Agents</div>
+    <div class="tab" data-tab="players" onclick="tab(this)">Players</div>
+    <div class="tab" data-tab="games" onclick="tab(this)">Games</div>
+    <div class="tab" data-tab="controller" onclick="tab(this)">Game Controller</div>
+    <div class="tab" data-tab="live" onclick="tab(this)">Live Bets</div>
+    <div class="tab" data-tab="settings" onclick="tab(this)">Settings</div>
+  </div>
+
+  <!-- NOTIFICATIONS -->
+  <div class="panel active" id="notifs">
+    <div class="card">
+      <h3>LIVE NOTIFICATIONS</h3>
+      <div id="notifList"><div style="color:#5a6a62;font-size:13px">Waiting for activity...</div></div>
+    </div>
+  </div>
+
+  <!-- AGENTS -->
+  <div class="panel" id="agents">
+    <div class="card">
+      <h3>CREATE AGENT</h3>
+      <div class="row">
+        <input id="agUser" placeholder="Username">
+        <input id="agPass" placeholder="Password" type="text">
+        <input id="agShare" type="number" placeholder="Share %" value="5" style="width:90px">
+        <input id="agCoins" type="number" placeholder="Coins" value="0" style="width:100px">
+        <button class="btn-gold" onclick="createAgent()">Create Agent</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>ALL AGENTS</h3>
+      <table>
+        <thead><tr><th>Username</th><th>Share %</th><th>Coins</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="agentTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PLAYERS -->
+  <div class="panel" id="players">
+    <div class="card">
+      <h3>CREATE PLAYER</h3>
+      <div class="row">
+        <input id="plUser" placeholder="Username">
+        <input id="plPass" placeholder="Password" type="text">
+        <input id="plCoins" type="number" placeholder="Coins" value="1000" style="width:100px">
+        <select id="plAgent"><option value="">No Agent</option></select>
+        <button class="btn-green" onclick="createPlayer()">Create Player</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>ADD / REMOVE COINS</h3>
+      <div class="row">
+        <input id="cUser" placeholder="Username">
+        <input id="cAmt" type="number" placeholder="Amount (+/-)" style="width:120px">
+        <button class="btn-green" onclick="updCoins()">Update</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>ALL PLAYERS</h3>
+      <table>
+        <thead><tr><th>Username</th><th>Agent</th><th>Coins</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="playerTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- GAMES -->
+  <div class="panel" id="games">
+    <div class="card">
+      <h3>GAMES (Square Grid Images)</h3>
+      <p style="font-size:12px;color:#5a6a62;margin-bottom:12px">Image URL ya base64 set karo. Game URL = Netlify/Render link</p>
+      <div id="gamesEdit"></div>
+    </div>
+  </div>
+
+  <!-- GAME CONTROLLER -->
+  <div class="panel" id="controller">
+    <div class="card">
+      <h3>GAME CONTROLLER</h3>
+      <p style="font-size:12px;color:#5a6a62;margin-bottom:14px">
+        Yahan se games ke admin panels open kar sakte ho. Pehle Games tab mein har game ka URL set karo.
+      </p>
+      <div id="controllerList"></div>
+    </div>
+  </div>
+
+  <!-- LIVE BETS -->
+  <div class="panel" id="live">
+    <div class="card">
+      <h3>LIVE BETS</h3>
+      <div id="liveBets"><div style="color:#5a6a62;font-size:13px">No live bets yet.</div></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="panel" id="settings">
+    <div class="card">
+      <h3>MY PROFILE (Master)</h3>
+      <p style="font-size:12px;color:#5a6a62;margin-bottom:10px">Apna username aur password change karo</p>
+      <div class="row">
+        <input id="profUser" placeholder="New Username">
+        <input id="profCurrPass" type="password" placeholder="Current Password">
+        <input id="profNewPass" type="password" placeholder="New Password (optional)">
+        <button class="btn-gold" onclick="updateProfile()">Update Profile</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>NOTIFICATION AGENTS</h3>
+      <div id="notifyAgents"></div>
+      <button class="btn-gold" style="margin-top:10px" onclick="saveNotifyAgents()">Save</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let user = null, allUsers = {}, allGames = {}, settings = {};
+
+    try {
+      user = JSON.parse(localStorage.getItem('l24'));
+      if (!user || user.role !== 'master') throw 0;
+    } catch { location.href = '/login'; }
+
+    document.getElementById('who').textContent = user.username;
+
+    socket.emit('auth', { username: user.username, token: user.token }, res => {
+      if (!res.success) { localStorage.removeItem('l24'); location.href = '/login'; return; }
+      socket.emit('get_state');
+    });
+
+    function tab(el) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById(el.dataset.tab).classList.add('active');
+    }
+
+    function toast(m) {
+      const t = document.getElementById('toast');
+      t.textContent = m; t.style.display = 'block';
+      setTimeout(() => t.style.display = 'none', 2500);
+    }
+
+    function logout() { localStorage.removeItem('l24'); location.href = '/login'; }
+
+    function createAgent() {
+      socket.emit('master_create_agent', {
+        username: document.getElementById('agUser').value,
+        password: document.getElementById('agPass').value,
+        sharePercent: document.getElementById('agShare').value,
+        coins: document.getElementById('agCoins').value
+              }, res => {
+        if (res.success) { toast('Agent created'); document.getElementById('agUser').value=''; document.getElementById('agPass').value=''; }
+        else toast(res.message || 'Error');
+      });
+    }
+
+    function createPlayer() {
+      socket.emit('master_create_player', {
+        username: document.getElementById('plUser').value,
+        password: document.getElementById('plPass').value,
+        coins: document.getElementById('plCoins').value,
+        agent: document.getElementById('plAgent').value
+      }, res => {
+        if (res.success) { toast('Player created'); document.getElementById('plUser').value=''; document.getElementById('plPass').value=''; }
+        else toast(res.message || 'Error');
+      });
+    }
+
+    function updCoins() {
+      socket.emit('update_coins', {
+        username: document.getElementById('cUser').value,
+        amount: document.getElementById('cAmt').value
+      }, res => {
+        if (res.success) toast('Coins updated: ' + res.coins);
+        else toast(res.message || 'Error');
+      });
+    }
+
+    function setShare(username) {
+      const p = prompt('Share % for ' + username, allUsers[username]?.sharePercent || 0);
+      if (p === null) return;
+      socket.emit('set_share', { username, percent: p }, res => {
+        if (res.success) toast('Share updated');
+      });
+    }
+
+    function toggle(username, active) {
+      socket.emit('toggle_user', { username, active }, res => {
+        if (res.success) toast(active ? 'Activated' : 'Terminated');
+      });
+    }
+
+    function saveGame(id) {
+      const name = document.getElementById('gname_'+id).value;
+      const image = document.getElementById('gimg_'+id).value;
+      const url = document.getElementById('gurl_'+id).value;
+      const active = document.getElementById('gact_'+id).checked;
+      socket.emit('update_game', { id, name, image, url, active }, res => {
+        if (res.success) toast('Game updated');
+      });
+    }
+
+    function saveNotifyAgents() {
+      const agents = [];
+      document.querySelectorAll('#notifyAgents input:checked').forEach(c => agents.push(c.value));
+      socket.emit('set_notify_agents', { agents }, res => {
+        if (res.success) toast('Saved');
+      });
+    }
+
+    function updateProfile() {
+      const newUsername = document.getElementById('profUser').value.trim();
+      const currentPassword = document.getElementById('profCurrPass').value;
+      const newPassword = document.getElementById('profNewPass').value;
+      if (!newUsername && !newPassword) return toast('Kuch change karo');
+      socket.emit('master_update_profile', { newUsername, newPassword, currentPassword }, res => {
+        if (!res.success) return toast(res.message || 'Error');
+        toast('Profile updated!');
+        user.username = res.user.username;
+        user.token = res.user.token;
+        localStorage.setItem('l24', JSON.stringify(user));
+        document.getElementById('who').textContent = user.username;
+        document.getElementById('profUser').value = '';
+        document.getElementById('profCurrPass').value = '';
+        document.getElementById('profNewPass').value = '';
+      });
+    }
+
+    function renderUsers(users) {
+      allUsers = users || {};
+      const agents = Object.values(allUsers).filter(u => u.role === 'agent');
+      const players = Object.values(allUsers).filter(u => u.role === 'player');
+
+      const sel = document.getElementById('plAgent');
+      sel.innerHTML = '<option value="">No Agent</option>' + agents.map(a => `<option value="${a.username}">${a.username}</option>`).join('');
+
+      document.getElementById('agentTable').innerHTML = agents.map(a => `
+        <tr>
+          <td>${a.username}</td>
+          <td>${a.sharePercent || 0}%</td>
+          <td style="color:#d4af37">${Number(a.coins).toLocaleString()}</td>
+          <td>${a.isActive ? '<span class="badge badge-agent">Active</span>' : '<span class="badge badge-off">Off</span>'}</td>
+          <td>
+            <button class="btn-blue" style="padding:4px 8px;font-size:11px" onclick="setShare('${a.username}')">%</button>
+            <button class="${a.isActive?'btn-red':'btn-green'}" style="padding:4px 8px;font-size:11px" onclick="toggle('${a.username}',${!a.isActive})">${a.isActive?'Off':'On'}</button>
+          </td>
+        </tr>
+      `).join('') || '<tr><td colspan="5" style="color:#5a6a62">No agents</td></tr>';
+
+      document.getElementById('playerTable').innerHTML = players.map(p => `
+        <tr>
+          <td>${p.username}</td>
+          <td>${p.parent || '—'}</td>
+          <td style="color:#d4af37">${Number(p.coins).toLocaleString()}</td>
+          <td>${p.isActive ? '<span class="badge badge-player">Active</span>' : '<span class="badge badge-off">Off</span>'}</td>
+          <td>
+            <button class="${p.isActive?'btn-red':'btn-green'}" style="padding:4px 8px;font-size:11px" onclick="toggle('${p.username}',${!p.isActive})">${p.isActive?'Terminate':'Activate'}</button>
+          </td>
+        </tr>
+      `).join('') || '<tr><td colspan="5" style="color:#5a6a62">No players</td></tr>';
+
+      document.getElementById('notifyAgents').innerHTML = agents.map(a => `
+        <label style="display:block;margin:6px 0;font-size:13px">
+          <input type="checkbox" value="${a.username}" ${(settings.notifyAgents||[]).includes(a.username)?'checked':''}> ${a.username}
+        </label>
+      `).join('') || '<div style="color:#5a6a62">No agents yet</div>';
+    }
+
+    function renderGames(games) {
+      allGames = games || {};
+      document.getElementById('gamesEdit').innerHTML = Object.values(allGames).sort((a,b)=>(a.order||0)-(b.order||0)).map(g => `
+        <div class="game-edit">
+          <div style="font-weight:700;color:#d4af37;margin-bottom:8px">${g.name}</div>
+          <input id="gname_${g.id}" value="${g.name||''}" placeholder="Name">
+          <input id="gimg_${g.id}" value="${g.image||''}" placeholder="Image URL">
+          <input id="gurl_${g.id}" value="${g.url||''}" placeholder="Game URL (Netlify/Render)">
+          <label style="font-size:12px"><input type="checkbox" id="gact_${g.id}" ${g.active?'checked':''}> Active</label>
+          <button class="btn-gold" style="margin-top:6px" onclick="saveGame('${g.id}')">Save</button>
+        </div>
+      `).join('');
+
+      const cl = document.getElementById('controllerList');
+      if (cl) {
+        cl.innerHTML = Object.values(allGames).sort((a,b)=>(a.order||0)-(b.order||0)).map(g => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:#0a100c;border-radius:8px;margin-bottom:8px">
+            <div>
+              <div style="font-weight:700;color:#d4af37">${g.name}</div>
+              <div style="font-size:11px;color:#5a6a62;margin-top:2px">${g.url ? g.url : 'URL not set'}</div>
+            </div>
+            <div>
+              ${g.url ? `<button class="btn-blue" style="padding:8px 12px;font-size:12px" onclick="window.open('${g.url}','_blank')">Open Game</button>
+              <button class="btn-gold" style="padding:8px 12px;font-size:12px" onclick="window.open('${g.url.replace(/\\/$/,'')}/admin.html','_blank')">Admin</button>` : '<span style="color:#5a6a62;font-size:12px">Set URL first</span>'}
+            </div>
+          </div>
+        `).join('') || '<div style="color:#5a6a62">No games</div>';
+      }
+    }
+
+    function renderNotifs(list) {
+      const box = document.getElementById('notifList');
+      if (!list || !list.length) { box.innerHTML = '<div style="color:#5a6a62;font-size:13px">Waiting for activity...</div>'; return; }
+      box.innerHTML = list.map(n => `
+        <div class="notif-item">
+          <div>${n.text}</div>
+          <div class="time">${new Date(n.time).toLocaleString()}</div>
+        </div>
+      `).join('');
+    }
+
+    socket.on('full_state', d => {
+      settings = d.settings || {};
+      renderUsers(d.users);
+      renderGames(d.games);
+      renderNotifs(d.notifications);
+      const pu = document.getElementById('profUser');
+      if (pu && !pu.value) pu.placeholder = 'Current: ' + (user.username || 'master');
+    });
+    socket.on('users_updated', renderUsers);
+    socket.on('games_updated', renderGames);
+    socket.on('notification', n => {
+      const box = document.getElementById('notifList');
+      const div = document.createElement('div');
+      div.className = 'notif-item';
+      div.innerHTML = `<div>${n.text}</div><div class="time">${new Date(n.time).toLocaleString()}</div>`;
+      box.insertBefore(div, box.firstChild);
+      if (Notification.permission === 'granted') new Notification('Libra 24', { body: n.text });
+    });
+    socket.on('live_bet', data => {
+      const box = document.getElementById('liveBets');
+      if (box.querySelector('div[style]')) box.innerHTML = '';
+      const div = document.createElement('div');
+      div.className = 'live-bet';
+      div.innerHTML = `<span><b>${data.username||'?'}</b> → ${data.game||''} / ${data.bet||''}</span><span style="color:#d4af37">₹${data.amount||0}</span>`;
+      box.insertBefore(div, box.firstChild);
+    });
+
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  </script>
+</body>
+</html>
