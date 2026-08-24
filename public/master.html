@@ -60,7 +60,6 @@
     <div class="tab" data-tab="settings" onclick="tab(this)">Settings</div>
   </div>
 
-  <!-- NOTIFICATIONS -->
   <div class="panel active" id="notifs">
     <div class="card">
       <h3>LIVE NOTIFICATIONS</h3>
@@ -68,7 +67,6 @@
     </div>
   </div>
 
-  <!-- AGENTS -->
   <div class="panel" id="agents">
     <div class="card">
       <h3>CREATE AGENT</h3>
@@ -89,7 +87,6 @@
     </div>
   </div>
 
-  <!-- PLAYERS -->
   <div class="panel" id="players">
     <div class="card">
       <h3>CREATE PLAYER</h3>
@@ -118,7 +115,6 @@
     </div>
   </div>
 
-  <!-- GAMES -->
   <div class="panel" id="games">
     <div class="card">
       <h3>GAMES (Square Grid Images)</h3>
@@ -127,18 +123,14 @@
     </div>
   </div>
 
-  <!-- GAME CONTROLLER -->
   <div class="panel" id="controller">
     <div class="card">
       <h3>GAME CONTROLLER</h3>
-      <p style="font-size:12px;color:#5a6a62;margin-bottom:14px">
-        Yahan se games ke admin panels open kar sakte ho. Pehle Games tab mein har game ka URL set karo.
-      </p>
+      <p style="font-size:12px;color:#5a6a62;margin-bottom:14px">Pehle Games tab mein URL set karo.</p>
       <div id="controllerList"></div>
     </div>
   </div>
 
-  <!-- LIVE BETS -->
   <div class="panel" id="live">
     <div class="card">
       <h3>LIVE BETS</h3>
@@ -146,11 +138,9 @@
     </div>
   </div>
 
-  <!-- SETTINGS -->
   <div class="panel" id="settings">
     <div class="card">
       <h3>MY PROFILE (Master)</h3>
-      <p style="font-size:12px;color:#5a6a62;margin-bottom:10px">Apna username aur password change karo</p>
       <div class="row">
         <input id="profUser" placeholder="New Username">
         <input id="profCurrPass" type="password" placeholder="Current Password">
@@ -205,7 +195,7 @@
         password: document.getElementById('agPass').value,
         sharePercent: document.getElementById('agShare').value,
         coins: document.getElementById('agCoins').value
-              }, res => {
+      }, res => {
         if (res.success) { toast('Agent created'); document.getElementById('agUser').value=''; document.getElementById('agPass').value=''; }
         else toast(res.message || 'Error');
       });
@@ -281,9 +271,7 @@
         document.getElementById('profCurrPass').value = '';
         document.getElementById('profNewPass').value = '';
       });
-    }
-
-    function renderUsers(users) {
+    }    function renderUsers(users) {
       allUsers = users || {};
       const agents = Object.values(allUsers).filter(u => u.role === 'agent');
       const players = Object.values(allUsers).filter(u => u.role === 'player');
@@ -338,7 +326,9 @@
 
       const cl = document.getElementById('controllerList');
       if (cl) {
-        cl.innerHTML = Object.values(allGames).sort((a,b)=>(a.order||0)-(b.order||0)).map(g => `
+        cl.innerHTML = Object.values(allGames).sort((a,b)=>(a.order||0)-(b.order||0)).map(g => {
+          const base = g.url ? (g.url.endsWith('/') ? g.url.slice(0,-1) : g.url) : '';
+          return `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:#0a100c;border-radius:8px;margin-bottom:8px">
             <div>
               <div style="font-weight:700;color:#d4af37">${g.name}</div>
@@ -346,10 +336,10 @@
             </div>
             <div>
               ${g.url ? `<button class="btn-blue" style="padding:8px 12px;font-size:12px" onclick="window.open('${g.url}','_blank')">Open Game</button>
-              <button class="btn-gold" style="padding:8px 12px;font-size:12px" onclick="window.open('${g.url.replace(/\\/$/,'')}/admin.html','_blank')">Admin</button>` : '<span style="color:#5a6a62;font-size:12px">Set URL first</span>'}
+              <button class="btn-gold" style="padding:8px 12px;font-size:12px" onclick="window.open('${base}/admin.html','_blank')">Admin</button>` : '<span style="color:#5a6a62;font-size:12px">Set URL first</span>'}
             </div>
-          </div>
-        `).join('') || '<div style="color:#5a6a62">No games</div>';
+          </div>`;
+        }).join('') || '<div style="color:#5a6a62">No games</div>';
       }
     }
 
