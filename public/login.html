@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Libra 24</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{
+      font-family:'Inter',system-ui,sans-serif;
+      background:#06080a;color:#e8e6e3;min-height:100vh;
+      display:flex;align-items:center;justify-content:center;
+      background-image:
+        radial-gradient(ellipse at 20% 15%,#0d1f18 0%,transparent 50%),
+        radial-gradient(ellipse at 80% 85%,#1a1208 0%,transparent 50%);
+    }
+    .box{
+      width:90%;max-width:360px;
+      background:#0c1210;
+      border:1px solid #1e2e28;
+      border-radius:16px;
+      padding:40px 28px 32px;
+      box-shadow:0 25px 60px rgba(0,0,0,.55);
+    }
+    .logo{
+      font-family:'Cinzel',serif;
+      text-align:center;
+      font-size:30px;
+      color:#d4af37;
+      letter-spacing:4px;
+      margin-bottom:6px;
+    }
+    .sub{
+      text-align:center;
+      color:#5a6a62;
+      font-size:11px;
+      letter-spacing:2px;
+      margin-bottom:28px;
+      text-transform:uppercase;
+    }
+    label{
+      display:block;
+      font-size:11px;
+      color:#7a8a82;
+      margin-bottom:6px;
+      letter-spacing:.6px;
+    }
+    input{
+      width:100%;
+      padding:14px 16px;
+      background:#080c0a;
+      border:1px solid #1e2e28;
+      border-radius:10px;
+      color:#fff;
+      font-size:15px;
+      margin-bottom:16px;
+      outline:none;
+    }
+    input:focus{border-color:#d4af37}
+    button{
+      width:100%;
+      padding:15px;
+      background:linear-gradient(180deg,#d4af37,#b8962e);
+      border:none;
+      border-radius:10px;
+      color:#111;
+      font-size:15px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:1px;
+      margin-top:6px;
+    }
+    button:active{transform:scale(.98)}
+    .err{
+      background:#2a1212;
+      color:#f5b7b1;
+      padding:12px;
+      border-radius:8px;
+      text-align:center;
+      font-size:13px;
+      margin-bottom:16px;
+      display:none;
+    }
+    .footer{
+      text-align:center;
+      margin-top:22px;
+      font-size:12px;
+      color:#5a6a62;
+      line-height:1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="logo">LIBRA 24</div>
+    <div class="sub">Gaming Platform</div>
+    <div class="err" id="err"></div>
+    <label>USERNAME</label>
+    <input type="text" id="user" placeholder="Enter username" autocomplete="username">
+    <label>PASSWORD</label>
+    <input type="password" id="pass" placeholder="Enter password" autocomplete="current-password">
+    <button onclick="login()">LOGIN</button>
+    <div class="footer">For ID contact your agent</div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    function login() {
+      const username = document.getElementById('user').value.trim();
+      const password = document.getElementById('pass').value;
+      if (!username || !password) return show('Username aur Password daalo');
+      socket.emit('login', { username, password }, res => {
+        if (!res.success) return show(res.message || 'Login failed');
+        localStorage.setItem('l24', JSON.stringify(res.user));
+        if (res.user.role === 'master') location.href = '/master';
+        else if (res.user.role === 'agent') location.href = '/agent';
+        else location.href = '/dashboard';
+      });
+    }
+    function show(m) {
+      const e = document.getElementById('err');
+      e.style.display = 'block';
+      e.textContent = m;
+    }
+    document.getElementById('pass').onkeypress = e => { if (e.key === 'Enter') login(); };
+    document.getElementById('user').onkeypress = e => { if (e.key === 'Enter') login(); };
+  </script>
+</body>
+</html>
