@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Libra 24 - Games</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{font-family:'Inter',system-ui,sans-serif;background:#06080a;color:#e8e6e3;min-height:100vh}
+    .top{background:linear-gradient(180deg,#0e1612,#0a100c);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1a2a22;position:sticky;top:0;z-index:20}
+    .brand{font-family:'Cinzel',serif;font-size:18px;color:#d4af37;letter-spacing:2px}
+    .bal{background:#0c1410;border:1px solid #1e2e28;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600}
+    .bal span{color:#d4af37}
+    .user-row{padding:10px 16px;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#7a8a82;border-bottom:1px solid #121a16}
+    .logout{background:#2a1515;color:#f5b7b1;border:none;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer}
+    .section{padding:20px 16px}
+    .section h2{font-size:13px;color:#7a8a82;letter-spacing:1.5px;margin-bottom:16px;font-weight:600}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+    @media(min-width:500px){.grid{grid-template-columns:repeat(3,1fr)}}
+    .game-card{
+      background:#0c1210;border:1px solid #1e2e28;border-radius:14px;overflow:hidden;cursor:pointer;
+      transition:.2s;aspect-ratio:1;display:flex;flex-direction:column;
+    }
+    .game-card:active{transform:scale(.97);border-color:#d4af37}
+    .game-img{
+      flex:1;background:#0a100c;display:flex;align-items:center;justify-content:center;
+      background-size:cover;background-position:center;position:relative;
+    }
+    .game-img::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.7),transparent)}
+    .game-placeholder{font-size:42px;opacity:.3}
+    .game-name{
+      padding:12px;text-align:center;font-weight:700;font-size:14px;letter-spacing:.5px;
+      background:#0a100c;border-top:1px solid #1a2a22;position:relative;z-index:1;
+    }
+    .toast{
+      position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0e1612;
+      border:1px solid #d4af37;color:#d4af37;padding:12px 20px;border-radius:10px;
+      font-size:13px;display:none;z-index:50;max-width:90%;text-align:center;
+    }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div class="brand">LIBRA 24</div>
+    <div class="bal">Coins <span id="coins">0</span></div>
+  </div>
+  <div class="user-row">
+    <span id="uname">Player</span>
+    <button class="logout" onclick="logout()">Logout</button>
+  </div>
+
+  <div class="section">
+    <h2>GAMES</h2>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let user = null;
+
+    try {
+      user = JSON.parse(localStorage.getItem('l24'));
+      if (!user || !user.token || user.role !== 'player') throw 0;
+    } catch {
+      location.href = '/login';
+    }
+
+    document.getElementById('uname').textContent = user.username;
+    document.getElementById('coins').textContent = Number(user.coins || 0).toLocaleString();
+
+    socket.emit('auth', { username: user.username, token: user.token }, res => {
+      if (!res.success) { localStorage.removeItem('l24'); location.href = '/login'; return; }
+      user.coins = res.user.coins;
+      document.getElementById('coins').textContent = Number(user.coins).toLocaleString();
+      socket.emit('get_state');
+    });
+
+    function renderGames(games) {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      Object.values(games || {}).filter(g => g.active).sort((a,b) => (a.order||0)-(b.order||0)).forEach(g => {
+        const card = document.createElement('div');
+        card.className = 'game-card';
+        card.onclick = () => enterGame(g.id);
+        const imgStyle = g.image ? `background-image:url('${g.image}')` : '';
+        card.innerHTML = `
+          <div class="game-img" style="${imgStyle}">
+            ${g.image ? '' : '<div class="game-placeholder">🎮</div>'}
+          </div>
+          <div class="game-name">${g.name}</div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function enterGame(gameId) {
+      socket.emit('player_enter_game', { gameId }, res => {
+        if (!res.success) return toast('Game not available');
+        if (res.url) {
+          window.open(res.url, '_blank');
+        } else {
+          toast('Game URL not set by Master yet');
+        }
+      });
+    }
+
+    function toast(m) {
+      const t = document.getElementById('toast');
+      t.textContent = m;
+      t.style.display = 'block';
+      setTimeout(() => t.style.display = 'none', 3000);
+    }
+
+    function logout() {
+      localStorage.removeItem('l24');
+      location.href = '/login';
+    }
+
+    socket.on('player_state', d => {
+      if (d.coins !== undefined) {
+        user.coins = d.coins;
+        document.getElementById('coins').textContent = Number(d.coins).toLocaleString();
+        localStorage.setItem('l24', JSON.stringify(user));
+      }
+      renderGames(d.games);
+    });
+
+    socket.on('games_updated', renderGames);
+    socket.on('balance_update', d => {
+      if (d.username === user.username) {
+        user.coins = d.coins;
+        document.getElementById('coins').textContent = Number(d.coins).toLocaleString();
+        localStorage.setItem('l24', JSON.stringify(user));
+      }
+    });
+  </script>
+</body>
+</html>
