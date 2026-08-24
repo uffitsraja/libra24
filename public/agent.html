@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Libra 24 - Agent</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Inter',system-ui,sans-serif;background:#06080a;color:#e0e0e0;min-height:100vh}
+    .top{background:#0c1210;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e2e28}
+    .brand{font-family:'Cinzel',serif;font-size:18px;color:#d4af37;letter-spacing:2px}
+    .logout{background:#2a1515;color:#f5b7b1;border:none;padding:7px 12px;border-radius:6px;font-size:12px;cursor:pointer}
+    .card{background:#0c1210;border:1px solid #1e2e28;border-radius:12px;padding:16px;margin:14px}
+    .card h3{color:#d4af37;font-size:13px;letter-spacing:1px;margin-bottom:12px}
+    input{padding:10px 12px;background:#080c0a;border:1px solid #1e2e28;border-radius:8px;color:#fff;font-size:13px;margin:4px;width:100%;max-width:200px}
+    button{padding:10px 14px;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;margin:4px}
+    .btn-gold{background:linear-gradient(180deg,#d4af37,#b8962e);color:#111}
+    .btn-green{background:#1a6b45;color:#fff}
+    .btn-red{background:#8b1a1a;color:#fff}
+    table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+    th,td{padding:8px;text-align:left;border-bottom:1px solid #1a2a22}
+    th{color:#d4af37}
+    .notif{background:#0a100c;border-radius:8px;padding:10px;margin-bottom:8px;font-size:12px;border-left:3px solid #d4af37}
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div class="brand">LIBRA 24</div>
+    <div>
+      <span id="who" style="font-size:13px;margin-right:10px"></span>
+      <button class="logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>YOUR SHARE: <span id="share">0</span>%</h3>
+  </div>
+
+  <div class="card">
+    <h3>CREATE PLAYER</h3>
+    <input id="pUser" placeholder="Username">
+    <input id="pPass" placeholder="Password">
+    <input id="pCoins" type="number" placeholder="Coins" value="1000">
+    <button class="btn-gold" onclick="createP()">Create</button>
+  </div>
+
+  <div class="card">
+    <h3>ADD / REMOVE COINS</h3>
+    <input id="cUser" placeholder="Username">
+    <input id="cAmt" type="number" placeholder="Amount (+/-)">
+    <button class="btn-green" onclick="coins()">Update</button>
+  </div>
+
+  <div class="card">
+    <h3>MY PLAYERS</h3>
+    <table>
+      <thead><tr><th>Username</th><th>Coins</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody id="ptable"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>NOTIFICATIONS</h3>
+    <div id="nlist">No activity yet</div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let user = null;
+    try {
+      user = JSON.parse(localStorage.getItem('l24'));
+      if (!user || user.role !== 'agent') throw 0;
+    } catch { location.href = '/login'; }
+
+    document.getElementById('who').textContent = user.username;
+    document.getElementById('share').textContent = user.sharePercent || 0;
+
+    socket.emit('auth', { username: user.username, token: user.token }, res => {
+      if (!res.success) { localStorage.removeItem('l24'); location.href = '/login'; return; }
+      document.getElementById('share').textContent = res.user.sharePercent || 0;
+      socket.emit('get_state');
+    });
+
+    function logout(){ localStorage.removeItem('l24'); location.href='/login'; }
+
+    function createP(){
+      socket.emit('master_create_player', {
+        username: document.getElementById('pUser').value,
+        password: document.getElementById('pPass').value,
+        coins: document.getElementById('pCoins').value
+      }, res => {
+        alert(res.success ? 'Created' : (res.message||'Error'));
+        if(res.success){ document.getElementById('pUser').value=''; document.getElementById('pPass').value=''; }
+      });
+    }
+
+    function coins(){
+      socket.emit('update_coins', {
+        username: document.getElementById('cUser').value,
+        amount: document.getElementById('cAmt').value
+      }, res => alert(res.success ? 'Updated: '+res.coins : (res.message||'Error')));
+    }
+
+    function toggle(u, a){
+      socket.emit('toggle_user', { username: u, active: a }, () => {});
+    }
+
+    socket.on('agent_state', d => {
+      const players = Object.values(d.users||{}).filter(u => u.role==='player');
+      document.getElementById('ptable').innerHTML = players.map(p => `
+        <tr>
+          <td>${p.username}</td>
+          <td style="color:#d4af37">${Number(p.coins).toLocaleString()}</td>
+          <td>${p.isActive?'Active':'Off'}</td>
+          <td><button class="${p.isActive?'btn-red':'btn-green'}" style="padding:4px 8px;font-size:11px" onclick="toggle('${p.username}',${!p.isActive})">${p.isActive?'Terminate':'Activate'}</button></td>
+        </tr>
+      `).join('') || '<tr><td colspan="4">No players</td></tr>';
+
+      const n = d.notifications || [];
+      document.getElementById('nlist').innerHTML = n.length ? n.map(x => `<div class="notif">${x.text}<br><small style="color:#5a6a62">${new Date(x.time).toLocaleString()}</small></div>`).join('') : 'No activity yet';
+    });
+
+    socket.on('notification', n => {
+      const box = document.getElementById('nlist');
+      if (box.textContent.includes('No activity')) box.innerHTML = '';
+      box.insertAdjacentHTML('afterbegin', `<div class="notif">${n.text}<br><small style="color:#5a6a62">${new Date(n.time).toLocaleString()}</small></div>`);
+    });
+
+    socket.on('users_updated', () => socket.emit('get_state'));
+  </script>
+</body>
+</html>
