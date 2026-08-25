@@ -6,7 +6,6 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
-const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
@@ -44,7 +43,7 @@ let settings = load(FILES.settings, {
   notifyAgents: []
 });
 let notifications = load(FILES.notifs, []);
-let gameTokens = {}; // temporary tokens for games
+
 if (!users['master']) {
   users['master'] = {
     id: uuidv4(),
@@ -63,35 +62,15 @@ if (!users['master']) {
 save(FILES.games, games);
 save(FILES.settings, settings);
 
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  next();
-});
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json({ limit: '5mb' }));
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 app.get('/master', (req, res) => res.sendFile(path.join(__dirname, 'public', 'master.html')));
 app.get('/agent', (req, res) => res.sendFile(path.join(__dirname, 'public', 'agent.html')));
-// Token validate API for games
-app.get('/api/validate-token', (req, res) => {
-  const { token, user } = req.query;
-  if (!token || !user) {
-    return res.json({ success: false, message: 'Missing token' });
-  }
 
-  const data = gameTokens[token];
-  if (!data || data.username !== user || data.expires < Date.now()) {
-    return res.json({ success: false, message: 'Invalid or expired token' });
-  }
-
-  res.json({
-    success: true,
-    username: data.username,
-    coins: data.coins
-  });
-});
 io.on('connection', (socket) => {
   socket.on('login', ({ username, password }, cb) => {
     username = (username || '').trim().toLowerCase();
@@ -199,8 +178,7 @@ io.on('connection', (socket) => {
     io.to('master').emit('users_updated', getSafeUsers());
     if (parent) io.to('agent_' + parent).emit('users_updated', getSafeUsers());
     cb({ success: true });
-  });
-    socket.on('update_coins', ({ username, amount }, cb) => {
+  });  socket.on('update_coins', ({ username, amount }, cb) => {
     if (socket.role !== 'master' && socket.role !== 'agent') return cb({ success: false });
     const u = users[username];
     if (!u) return cb({ success: false, message: 'Not found' });
@@ -290,48 +268,35 @@ io.on('connection', (socket) => {
     });
   });
 
- socket.on('player_enter_game', ({ gameId }, cb) => {
-  if (socket.role !== 'player') return cb({ success: false });
-  const u = users[socket.username];
-  const g = games[gameId];
-  if (!u || !g || !g.url) return cb({ success: false, message: 'Game not available' });
+  socket.on('player_enter_game', ({ gameId }, cb) => {
+    if (socket.role !== 'player') return cb({ success: false });
+    const u = users[socket.username];
+    const g = games[gameId];
+    if (!u || !g) return cb({ success: false });
 
-  // Temporary token (60 seconds)
-  const token = crypto.randomBytes(16).toString('hex');
-  gameTokens[token] = {
-    username: u.username,
-    coins: u.coins,
-    expires: Date.now() + 60 * 1000
-  };
+    const msg = {
+      id: uuidv4(),
+      type: 'game_enter',
+      text: `Player ${u.username} (Coins: ${u.coins}) entered ${g.name}`,
+      username: u.username,
+      coins: u.coins,
+      game: g.name,
+      time: new Date().toISOString()
+    };
+    notifications.unshift(msg);
+    if (notifications.length > 200) notifications.pop();
+    save(FILES.notifs, notifications);
 
-  // Clean old tokens
-  Object.keys(gameTokens).forEach(t => {
-    if (gameTokens[t].expires < Date.now()) delete gameTokens[t];
+    io.to('master').emit('notification', msg);
+    (settings.notifyAgents || []).forEach(ag => io.to('agent_' + ag).emit('notification', msg));
+
+    let finalUrl = g.url || '';
+    if (finalUrl && u.token) {
+      const sep = finalUrl.includes('?') ? '&' : '?';
+      finalUrl = finalUrl + sep + 'user=' + encodeURIComponent(u.username) + '&token=' + encodeURIComponent(u.token) + '&role=player';
+    }
+    cb({ success: true, url: finalUrl });
   });
-
-  const msg = {
-    id: uuidv4(),
-    type: 'game_enter',
-    text: `Player ${u.username} (Coins: ${u.coins}) entered ${g.name}`,
-    username: u.username,
-    coins: u.coins,
-    game: g.name,
-    time: new Date().toISOString()
-  };
-  notifications.unshift(msg);
-  if (notifications.length > 200) notifications.pop();
-  save(FILES.notifs, notifications);
-
-  io.to('master').emit('notification', msg);
-  (settings.notifyAgents || []).forEach(ag => {
-    io.to('agent_' + ag).emit('notification', msg);
-  });
-
-  const base = g.url.endsWith('/') ? g.url.slice(0, -1) : g.url;
-  const finalUrl = `${base}/?token=${token}&user=${encodeURIComponent(u.username)}`;
-
-  cb({ success: true, url: finalUrl });
-});
 
   socket.on('live_bet', (data) => {
     io.to('master').emit('live_bet', data);
