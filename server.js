@@ -267,7 +267,6 @@ io.on('connection', (socket) => {
       }
     });
   });
-
   socket.on('player_enter_game', ({ gameId }, cb) => {
     if (socket.role !== 'player') return cb({ success: false });
     const u = users[socket.username];
@@ -293,11 +292,13 @@ io.on('connection', (socket) => {
     let finalUrl = g.url || '';
     if (finalUrl && u.token) {
       const sep = finalUrl.includes('?') ? '&' : '?';
-      finalUrl = finalUrl + sep + 'user=' + encodeURIComponent(u.username) + '&token=' + encodeURIComponent(u.token) + '&role=player';
+      finalUrl = finalUrl + sep + 'user=' + encodeURIComponent(u.username)
+        + '&token=' + encodeURIComponent(u.token)
+        + '&role=player'
+        + '&coins=' + encodeURIComponent(u.coins || 0);
     }
     cb({ success: true, url: finalUrl });
   });
-
   socket.on('live_bet', (data) => {
     io.to('master').emit('live_bet', data);
   });
