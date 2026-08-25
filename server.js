@@ -15,6 +15,9 @@ const PORT = process.env.PORT || 3000;
 const DATA = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA)) fs.mkdirSync(DATA);
 
+const FB_DB = process.env.FIREBASE_DB_URL || 'https://lucky-7-casino-default-rtdb.asia-southeast1.firebasedatabase.app';
+const FB_ROOT = 'libra24';
+
 const FILES = {
   users: path.join(DATA, 'users.json'),
   games: path.join(DATA, 'games.json'),
@@ -22,45 +25,93 @@ const FILES = {
   notifs: path.join(DATA, 'notifications.json')
 };
 
-function load(file, def = {}) {
-  try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8')); } catch(e){}
-  return def;
-}
-function save(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
-
-let users = load(FILES.users, {});
-let games = load(FILES.games, {
+const DEFAULT_GAMES = {
   aviator: { id: 'aviator', name: 'Aviator', image: '', url: '', active: true, order: 1 },
   teenpatti: { id: 'teenpatti', name: 'Teen Patti', image: '', url: '', active: true, order: 2 },
   andarbahar: { id: 'andarbahar', name: 'Andar Bahar', image: '', url: '', active: true, order: 3 },
   lucky7: { id: 'lucky7', name: 'Lucky 7', image: '', url: '', active: true, order: 4 },
   simplebets: { id: 'simplebets', name: 'Simple Bets', image: '', url: '', active: true, order: 5 }
-});
-let settings = load(FILES.settings, {
-  siteName: 'Libra 24',
-  notifyAgents: []
-});
-let notifications = load(FILES.notifs, []);
+};
 
-if (!users['master']) {
-  users['master'] = {
-    id: uuidv4(),
-    username: 'master',
-    password: bcrypt.hashSync('master123', 8),
-    role: 'master',
-    coins: 0,
-    sharePercent: 0,
-    isActive: true,
-    parent: null,
-    createdAt: new Date().toISOString(),
-    token: null
-  };
-  save(FILES.users, users);
+function loadLocal(file, def = {}) {
+  try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) {}
+  return def;
 }
-save(FILES.games, games);
-save(FILES.settings, settings);
+
+async function fbGet(key, def) {
+  try {
+    const res = await fetch(`${FB_DB}/${FB_ROOT}/${key}.json`);
+    if (!res.ok) throw new Error('FB get ' + res.status);
+    const data = await res.json();
+    if (data === null || data === undefined) return def;
+    return data;
+  } catch (e) {
+    console.error('FB get failed', key, e.message);
+    return loadLocal(FILES[key] || path.join(DATA, key + '.json'), def);
+  }
+}
+
+async function fbSet(key, data) {
+  try {
+    const file = FILES[key] || path.join(DATA, key + '.json');
+    fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  } catch (e) {}
+  try {
+    const res = await fetch(`${FB_DB}/${FB_ROOT}/${key}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) console.error('FB set failed', key, res.status);
+  } catch (e) {
+    console.error('FB set error', key, e.message);
+  }
+}
+
+function save(file, data) {
+  let key = 'users';
+  if (file.includes('games')) key = 'games';
+  else if (file.includes('settings')) key = 'settings';
+  else if (file.includes('notif')) key = 'notifs';
+  else if (file.includes('users')) key = 'users';
+  fbSet(key, data);
+}
+
+let users = {};
+let games = { ...DEFAULT_GAMES };
+let settings = { siteName: 'Libra 24', notifyAgents: [] };
+let notifications = [];
+
+async function initData() {
+  users = await fbGet('users', {});
+  games = await fbGet('games', DEFAULT_GAMES);
+  settings = await fbGet('settings', { siteName: 'Libra 24', notifyAgents: [] });
+  notifications = await fbGet('notifs', []);
+  if (!Array.isArray(notifications)) notifications = [];
+
+  if (!users['master']) {
+    users['master'] = {
+      id: uuidv4(),
+      username: 'master',
+      password: bcrypt.hashSync('master123', 8),
+      role: 'master',
+      coins: 0,
+      sharePercent: 0,
+      isActive: true,
+      parent: null,
+      createdAt: new Date().toISOString(),
+      token: null
+    };
+  }
+  Object.keys(DEFAULT_GAMES).forEach(id => {
+    if (!games[id]) games[id] = DEFAULT_GAMES[id];
+  });
+  await fbSet('users', users);
+  await fbSet('games', games);
+  await fbSet('settings', settings);
+  await fbSet('notifs', notifications);
+  console.log('Libra data loaded. Users:', Object.keys(users).length);
+}
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json({ limit: '5mb' }));
@@ -267,6 +318,7 @@ io.on('connection', (socket) => {
       }
     });
   });
+
   socket.on('player_enter_game', ({ gameId }, cb) => {
     if (socket.role !== 'player') return cb({ success: false });
     const u = users[socket.username];
@@ -299,6 +351,7 @@ io.on('connection', (socket) => {
     }
     cb({ success: true, url: finalUrl });
   });
+
   socket.on('live_bet', (data) => {
     io.to('master').emit('live_bet', data);
   });
@@ -312,7 +365,11 @@ io.on('connection', (socket) => {
       Object.values(safe).forEach(u => {
         if (u.parent === socket.username || u.username === socket.username) myPlayers[u.username] = u;
       });
-      socket.emit('agent_state', { users: myPlayers, games, notifications: notifications.filter(n => n.username && users[n.username]?.parent === socket.username).slice(0, 30) });
+      socket.emit('agent_state', {
+        users: myPlayers,
+        games,
+        notifications: notifications.filter(n => n.username && users[n.username]?.parent === socket.username).slice(0, 30)
+      });
     } else if (socket.role === 'player') {
       const u = users[socket.username];
       socket.emit('player_state', { coins: u?.coins || 0, games });
@@ -339,7 +396,13 @@ function getSafeUsers() {
   return out;
 }
 
-server.listen(PORT, () => {
-  console.log(`Libra 24 running on http://localhost:${PORT}`);
-  console.log(`Master login: master / master123`);
+initData().then(() => {
+  server.listen(PORT, () => {
+    console.log(`Libra 24 running on http://localhost:${PORT}`);
+    console.log(`Master login: master / master123`);
+    console.log(`Data: Firebase ${FB_DB}/${FB_ROOT}`);
+  });
+}).catch(err => {
+  console.error('Init failed', err);
+  server.listen(PORT, () => console.log('Started with empty/local data'));
 });
