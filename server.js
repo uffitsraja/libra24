@@ -81,6 +81,7 @@ let users = {};
 let games = { ...DEFAULT_GAMES };
 let settings = { siteName: 'Libra 24', notifyAgents: [] };
 let notifications = [];
+let transactions = [];
 
 async function initData() {
   users = await fbGet('users', {});
@@ -88,6 +89,8 @@ async function initData() {
   settings = await fbGet('settings', { siteName: 'Libra 24', notifyAgents: [] });
   notifications = await fbGet('notifs', []);
   if (!Array.isArray(notifications)) notifications = [];
+  transactions = await fbGet('transactions', []);
+  if (!Array.isArray(transactions)) transactions = [];
 
   if (!users['master']) {
     users['master'] = {
@@ -110,11 +113,73 @@ async function initData() {
   await fbSet('games', games);
   await fbSet('settings', settings);
   await fbSet('notifs', notifications);
+  await fbSet('transactions', transactions);
   console.log('Libra data loaded. Users:', Object.keys(users).length);
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json({ limit: '5mb' }));
+
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
+function pushTx(tx) {
+  transactions.unshift(tx);
+  if (transactions.length > 500) transactions = transactions.slice(0, 500);
+  fbSet('transactions', transactions);
+}
+
+app.post('/api/wallet/adjust', (req, res) => {
+  try {
+    const { username, token, delta, reason, game } = req.body || {};
+    const u = users[(username || '').trim().toLowerCase()];
+    if (!u) return res.status(404).json({ success: false, message: 'User not found' });
+    if (!token || u.token !== token) return res.status(401).json({ success: false, message: 'Invalid token' });
+    if (u.role !== 'player') return res.status(403).json({ success: false, message: 'Players only' });
+
+    const d = Number(delta) || 0;
+    u.coins = Math.max(0, (Number(u.coins) || 0) + d);
+    save(FILES.users, users);
+
+    const tx = {
+      id: uuidv4(),
+      username: u.username,
+      delta: d,
+      balance: u.coins,
+      reason: reason || (d >= 0 ? 'win' : 'bet'),
+      game: game || 'game',
+      time: new Date().toISOString()
+    };
+    pushTx(tx);
+
+    io.emit('balance_update', { username: u.username, coins: u.coins });
+    io.to('master').emit('users_updated', getSafeUsers());
+    if (u.parent) io.to('agent_' + u.parent).emit('users_updated', getSafeUsers());
+
+    res.json({ success: true, coins: u.coins, tx });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.get('/api/wallet/history', (req, res) => {
+  try {
+    const username = (req.query.username || '').trim().toLowerCase();
+    const token = req.query.token || '';
+    const u = users[username];
+    if (!u || u.token !== token) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const list = transactions.filter(t => t.username === username).slice(0, 50);
+    res.json({ success: true, transactions: list, coins: u.coins });
+  } catch (e) {
+    res.status(500).json({ success: false });
+  }
+});
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
@@ -151,7 +216,6 @@ io.on('connection', (socket) => {
       notifications.unshift(msg);
       if (notifications.length > 200) notifications.pop();
       save(FILES.notifs, notifications);
-
       io.to('master').emit('notification', msg);
       (settings.notifyAgents || []).forEach(ag => {
         io.to('agent_' + ag).emit('notification', msg);
@@ -187,18 +251,13 @@ io.on('connection', (socket) => {
     username = (username || '').trim().toLowerCase();
     if (!username || !password) return cb({ success: false, message: 'Required' });
     if (users[username]) return cb({ success: false, message: 'Already exists' });
-
     users[username] = {
-      id: uuidv4(),
-      username,
+      id: uuidv4(), username,
       password: bcrypt.hashSync(password, 8),
-      role: 'agent',
-      coins: Number(coins) || 0,
+      role: 'agent', coins: Number(coins) || 0,
       sharePercent: Number(sharePercent) || 0,
-      isActive: true,
-      parent: 'master',
-      createdAt: new Date().toISOString(),
-      token: null
+      isActive: true, parent: 'master',
+      createdAt: new Date().toISOString(), token: null
     };
     save(FILES.users, users);
     io.to('master').emit('users_updated', getSafeUsers());
@@ -210,20 +269,13 @@ io.on('connection', (socket) => {
     username = (username || '').trim().toLowerCase();
     if (!username || !password) return cb({ success: false, message: 'Required' });
     if (users[username]) return cb({ success: false, message: 'Already exists' });
-
     const parent = socket.role === 'master' ? (agent || null) : socket.username;
-
     users[username] = {
-      id: uuidv4(),
-      username,
+      id: uuidv4(), username,
       password: bcrypt.hashSync(password, 8),
-      role: 'player',
-      coins: Number(coins) || 0,
-      sharePercent: 0,
-      isActive: true,
-      parent,
-      createdAt: new Date().toISOString(),
-      token: null
+      role: 'player', coins: Number(coins) || 0,
+      sharePercent: 0, isActive: true, parent,
+      createdAt: new Date().toISOString(), token: null
     };
     save(FILES.users, users);
     io.to('master').emit('users_updated', getSafeUsers());
@@ -354,6 +406,24 @@ io.on('connection', (socket) => {
 
   socket.on('live_bet', (data) => {
     io.to('master').emit('live_bet', data);
+  });
+
+  socket.on('get_transactions', (cb) => {
+    if (socket.role !== 'player' && socket.role !== 'master' && socket.role !== 'agent') {
+      return typeof cb === 'function' && cb({ success: false });
+    }
+    let list = transactions || [];
+    if (socket.role === 'player') {
+      list = list.filter(t => t.username === socket.username).slice(0, 40);
+    } else if (socket.role === 'agent') {
+      list = list.filter(t => {
+        const u = users[t.username];
+        return u && u.parent === socket.username;
+      }).slice(0, 50);
+    } else {
+      list = list.slice(0, 80);
+    }
+    if (typeof cb === 'function') cb({ success: true, transactions: list });
   });
 
   socket.on('get_state', () => {
