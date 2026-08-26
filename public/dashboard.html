@@ -18,31 +18,18 @@
     .section h2{font-size:13px;color:#7a8a82;letter-spacing:1.5px;margin-bottom:16px;font-weight:600}
     .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
     @media(min-width:500px){.grid{grid-template-columns:repeat(3,1fr)}}
-    .game-card{
-      background:#0c1210;border:1px solid #1e2e28;border-radius:14px;overflow:hidden;cursor:pointer;
-      transition:.2s;aspect-ratio:1;display:flex;flex-direction:column;
-    }
+    .game-card{background:#0c1210;border:1px solid #1e2e28;border-radius:14px;overflow:hidden;cursor:pointer;transition:.2s;aspect-ratio:1;display:flex;flex-direction:column}
     .game-card:active{transform:scale(.97);border-color:#d4af37}
-    .game-img{
-      flex:1;background:#0a100c;display:flex;align-items:center;justify-content:center;
-      background-size:cover;background-position:center;position:relative;
-    }
+    .game-img{flex:1;background:#0a100c;display:flex;align-items:center;justify-content:center;background-size:cover;background-position:center;position:relative}
     .game-img::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.7),transparent)}
     .game-placeholder{font-size:42px;opacity:.3}
-    .game-name{
-      padding:12px;text-align:center;font-weight:700;font-size:14px;letter-spacing:.5px;
-      background:#0a100c;border-top:1px solid #1a2a22;position:relative;z-index:1;
-    }
+    .game-name{padding:12px;text-align:center;font-weight:700;font-size:14px;letter-spacing:.5px;background:#0a100c;border-top:1px solid #1a2a22;position:relative;z-index:1}
     .hist-box{margin-top:8px}
     .tx-item{background:#0a100c;border:1px solid #1a2a22;border-radius:10px;padding:12px;margin-bottom:8px;font-size:12px;display:flex;justify-content:space-between;gap:10px}
     .tx-item .pos{color:#7dcea0;font-weight:700}
     .tx-item .neg{color:#f5b7b1;font-weight:700}
     .tx-meta{color:#5a6a62;font-size:11px;margin-top:4px}
-    .toast{
-      position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0e1612;
-      border:1px solid #d4af37;color:#d4af37;padding:12px 20px;border-radius:10px;
-      font-size:13px;display:none;z-index:50;max-width:90%;text-align:center;
-    }
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0e1612;border:1px solid #d4af37;color:#d4af37;padding:12px 20px;border-radius:10px;font-size:13px;display:none;z-index:50;max-width:90%;text-align:center}
   </style>
 </head>
 <body>
@@ -111,18 +98,14 @@
     function enterGame(gameId) {
       socket.emit('player_enter_game', { gameId }, res => {
         if (!res.success) return toast('Game not available');
-        if (res.url) {
-          window.open(res.url, '_blank');
-        } else {
-          toast('Game URL not set by Master yet');
-        }
+        if (res.url) window.open(res.url, '_blank');
+        else toast('Game URL not set by Master yet');
       });
     }
 
     function toast(m) {
       const t = document.getElementById('toast');
-      t.textContent = m;
-      t.style.display = 'block';
+      t.textContent = m; t.style.display = 'block';
       setTimeout(() => t.style.display = 'none', 3000);
     }
 
@@ -149,6 +132,19 @@
         }).join('');
       });
     }
+
+    function refreshCoins() {
+      socket.emit('auth', { username: user.username, token: user.token }, res => {
+        if (!res.success) return;
+        user.coins = res.user.coins;
+        document.getElementById('coins').textContent = Number(user.coins).toLocaleString();
+        localStorage.setItem('l24', JSON.stringify(user));
+        loadTx();
+      });
+    }
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshCoins(); });
+    window.addEventListener('focus', refreshCoins);
+    setInterval(refreshCoins, 8000);
 
     function logout() {
       localStorage.removeItem('l24');
